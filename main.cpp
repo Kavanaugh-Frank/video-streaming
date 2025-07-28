@@ -5,38 +5,76 @@
 #include <vector>
 #include <thread>
 
-#include "./src/serve_video.hpp"
-#include "./src/query_parameters.hpp"
-#include "./src/list_video_files.hpp"
-#include "./src/create_html.hpp"
+#include "include/extract_from_request.hpp"
+#include "include/struct_definitions.hpp"
+#include "include/create_response_body.hpp"
+#include "include/open_video_file.hpp"
+#include "include/serve_video.hpp"
+#include "include/query_parameters.hpp"
+#include "include/list_video_files.hpp"
+#include "include/serve_html.hpp"
+#include "include/resume_watching.hpp"
+#include "include/video_request_handler.hpp"
+#include "include/html_request_handler.hpp"
 
 #pragma comment(lib, "ws2_32.lib")
 
 void handle_client(SOCKET client_socket, const std::vector<std::string>& video_file_names) {
-
-	std::cout << "Client connected.\n";
-
     char receive_buffer[2048];
     int bytes_received = recv(client_socket, receive_buffer, sizeof(receive_buffer) - 1, 0);
 
     receive_buffer[bytes_received] = '\0';
     std::string request_string(receive_buffer);
-    std::cout << request_string << std::endl;
 
     if (request_string.find("GET /video") == 0) {
-        auto query_params = Query_Parameters::get_query_params(request_string, { "name" });
-        Serve_Video video_handler(client_socket, request_string, query_params["name"]);
-        video_handler.serve();
+		Video_Request_Handler video_request_handler(client_socket);
+		video_request_handler.serve_video(request_string);
+        closesocket(client_socket);
+    }
+    else if (request_string.find("GET /all_videos") == 0) {
+        std::string response_header = Http_Response_Generator::build_success_200();
+        std::string response_body = Http_Response_Generator::build_response_body("video_names", video_file_names);
+
+        send(client_socket, response_header.c_str(), static_cast<int>(response_header.size()), 0);
+        send(client_socket, response_body.c_str(), static_cast<int>(response_body.size()), 0);
+		closesocket(client_socket);
+    }
+    else if (request_string.find("GET /last_watched") == 0) {
+        std::unordered_map<std::string, std::string> query_params;
+        try {
+            query_params = Query_Parameters::get_query_params(request_string, { "name" });
+        }
+        catch (const std::invalid_argument& ex) {
+            std::cerr << "Invalid request: " << ex.what() << std::endl;
+            closesocket(client_socket);
+            return;
+        }
+
+        auto last_range = Resume_Watching::read_last_watched_range(query_params["name"]);
+		std::cout << "Last watched range for " << query_params["name"] << ": " << last_range.first << "-" << last_range.second << std::endl;
+        if (last_range.first == 0 && last_range.second == 0) {
+            std::string error_response = Http_Response_Generator::build_error_404();
+            send(client_socket, error_response.c_str(), static_cast<int>(error_response.size()), 0);
+        }
+        else {
+            std::string response_header = Http_Response_Generator::build_success_200();
+			size_t seconds_watched = Resume_Watching::get_last_watched_in_seconds(query_params["name"]);
+            std::vector<std::string> vec;
+            vec.push_back(std::to_string(seconds_watched));
+            std::string response_body = Http_Response_Generator::build_response_body("last_time_watched", vec);
+			send(client_socket, response_header.c_str(), static_cast<int>(response_header.size()), 0);
+            send(client_socket, response_body.c_str(), static_cast<int>(response_body.size()), 0);
+        }
         closesocket(client_socket);
     }
     else if (request_string.find("GET /") == 0) {
-        std::cout << "HERE.\n";
-        Create_Html html_generator;
-        std::string html_content = html_generator.load_html_string(video_file_names);
-        send(client_socket, html_content.c_str(), static_cast<int>(html_content.size()), 0);
+		HTML_Request_Handler html_request_handler(client_socket, "index.html");
+		html_request_handler.serve_HTML();
         closesocket(client_socket);
     }
     else {
+        std::string error_response = Http_Response_Generator::build_error_400();
+		send(client_socket, error_response.c_str(), static_cast<int>(error_response.size()), 0);
         closesocket(client_socket);
     }
 }

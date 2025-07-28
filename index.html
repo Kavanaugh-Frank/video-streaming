@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Watch Video</title>
+</head>
+<body>
+    <h1>Watch Video</h1>
+    <button onclick="window.location.href='/'">Go to Home</button>
+    <br><br>
+
+    <label for="videoSelect">Choose a video:</label>
+    <select id="videoSelect"></select>
+    <button id="loadBtn">Load Video</button>
+
+    <br><br>
+    <div id="playerContainer" style="display:none;">
+        <video id="videoPlayer" width="720" controls>
+            <source id="videoSource" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+    </div>
+
+    <script>
+        const select = document.getElementById('videoSelect');
+        const loadBtn = document.getElementById('loadBtn');
+        const playerDiv = document.getElementById('playerContainer');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const videoSource = document.getElementById('videoSource');
+        let resumeTime = 0;  // default to 0
+
+        // Fetch video list and populate the select options
+        async function fetchVideoList() {
+            const response = await fetch('/all_videos');
+            const videos = await response.json();
+            const video_names = videos.video_names
+            video_names.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+        }
+
+        // Fetch resume time from server for the selected video
+        async function fetchResumeTime(videoName) {
+            try {
+                const response = await fetch('/last_watched?name=' + encodeURIComponent(videoName));
+                if (!response.ok) {
+                    console.warn('Failed to fetch resume time, defaulting to 0');
+                    return 0;
+                }
+                const text = await response.json();
+                const seconds = parseFloat(text.last_time_watched);
+                if (isNaN(seconds)) {
+                    return 0;
+                }
+                return seconds;
+            } catch (error) {
+                console.error('Error fetching resume time:', error);
+                return 0;
+            }
+        }
+
+        // Load the selected video and resume from last watched time
+        loadBtn.addEventListener('click', async () => {
+            const videoName = select.value;
+            resumeTime = await fetchResumeTime(videoName);
+            videoSource.src = '/video?name=' + encodeURIComponent(videoName);
+            console.log(resumeTime)
+            videoPlayer.load();
+            playerDiv.style.display = 'block';
+            videoPlayer.play();
+        });
+
+        videoPlayer.addEventListener('loadedmetadata', () => {
+            if (resumeTime > 0 && resumeTime < videoPlayer.duration) {
+                videoPlayer.currentTime = resumeTime;
+            }
+        });
+
+        fetchVideoList();
+    </script>
+</body>
+</html>

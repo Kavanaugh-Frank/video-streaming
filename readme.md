@@ -5,5 +5,8 @@ cd  /c/users/kavan/onedrive/desktop/http_test
 
 
 TODO
-Add Threading
-Time to start making the code readable and modular
+Tidy up the code, remove any unused imports and functions
+Get the resume working, so that a person can resume the video at the last point they left off
+	this will require the front end to request the exact time
+	and the backend to hold the time and return it to the front end for that video
+	and the use of ffmeg to get the duration of the video to convert bytes to seconds
