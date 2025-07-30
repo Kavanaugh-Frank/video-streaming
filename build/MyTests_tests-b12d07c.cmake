@@ -1,0 +1,5 @@
+add_test( [==[Basic arithmetic works]==] C:/Users/kavan/OneDrive/Desktop/http_test/build/MyTests.exe [==[Basic arithmetic works]==]  )
+set_tests_properties( [==[Basic arithmetic works]==] PROPERTIES WORKING_DIRECTORY C:/Users/kavan/OneDrive/Desktop/http_test/build)
+add_test( [==[String concatenation]==] C:/Users/kavan/OneDrive/Desktop/http_test/build/MyTests.exe [==[String concatenation]==]  )
+set_tests_properties( [==[String concatenation]==] PROPERTIES WORKING_DIRECTORY C:/Users/kavan/OneDrive/Desktop/http_test/build)
+set( MyTests_TESTS [==[Basic arithmetic works]==] [==[String concatenation]==])

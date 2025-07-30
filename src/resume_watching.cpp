@@ -1,14 +1,18 @@
 #include "../include/resume_watching.hpp"
+#include "../include/struct_definitions.hpp"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <cstdio>
+#include <memory>
+#include <string>
+#include <array>
+#include <regex>
 
 namespace fs = std::filesystem;
 const std::string FILE_PATH = "last_range.txt";
 const std::string VIDEO_DIR = "./htdocs/";
-const size_t DEFAULT_BITRATE_KBPS = 1000;
-// ---------- Utility ----------
 
 std::string Resume_Watching::build_range_line(const std::string& video_name, size_t start, size_t end) {
     return video_name + " " + std::to_string(start) + "-" + std::to_string(end);
@@ -26,7 +30,6 @@ bool Resume_Watching::parse_range_line(const std::string& line, const std::strin
     return true;
 }
 
-// ---------- File I/O ----------
 
 std::vector<std::string> Resume_Watching::read_lines(const std::string& path) {
     std::vector<std::string> lines;
@@ -48,7 +51,33 @@ void Resume_Watching::write_lines(const std::string& path, const std::vector<std
     }
 }
 
-// ---------- Public Methods ----------
+
+static VideoInfo parse_ffprobe_output(const std::string& output) {
+    VideoInfo info;
+
+    static const std::regex duration_regex(R"delim("duration"\s*:\s*"([0-9]+(?:\.[0-9]+)?)")delim");
+    static const std::regex size_regex(R"delim("size"\s*:\s*"([0-9]+)")delim");
+    static const std::regex bit_rate_regex(R"delim("bit_rate"\s*:\s*"([0-9]+)")delim");
+    static const std::regex filename_regex(R"delim("filename"\s*:\s*"([^"]+)")delim");
+
+
+    std::smatch match;
+
+    if (std::regex_search(output, match, duration_regex)) {
+        info.duration = std::stod(match[1].str());
+    }
+    if (std::regex_search(output, match, size_regex)) {
+        info.size = std::stoull(match[1].str());
+    }
+    if (std::regex_search(output, match, bit_rate_regex)) {
+        info.bit_rate = std::stoll(match[1].str());
+    }
+    if (std::regex_search(output, match, filename_regex)) {
+        info.filename = match[1].str();
+    }
+
+    return info;
+}
 
 void Resume_Watching::write_last_watched_range(const std::string& video_name, size_t start, size_t end) {
     std::vector<std::string> lines = read_lines(FILE_PATH);
@@ -91,13 +120,17 @@ size_t Resume_Watching::get_last_watched_in_seconds(const std::string& video_nam
     auto [range_start, range_end] = read_last_watched_range(video_name);
     if (range_start == 0 && range_end == 0) return 0;
 
-    size_t file_size = get_file_size(VIDEO_DIR + video_name);
+    std::string full_path = VIDEO_DIR + video_name;
+    size_t file_size = get_file_size(full_path);
     if (file_size == 0) return 0;
 
-    size_t approx_duration = get_approx_duration(file_size, DEFAULT_BITRATE_KBPS);
-    double watched_ratio = static_cast<double>(range_start) / file_size;
+    VideoInfo info = get_video_info(full_path);
+    if (info.duration <= 0.0) return 0;
 
-    return static_cast<size_t>(watched_ratio * approx_duration);
+    double watched_ratio = static_cast<double>(range_end) / static_cast<double>(file_size);
+    size_t last_watched_seconds = static_cast<size_t>(watched_ratio * info.duration);
+
+    return last_watched_seconds;
 }
 
 size_t Resume_Watching::get_file_size(const std::string& path) {
@@ -110,7 +143,27 @@ size_t Resume_Watching::get_file_size(const std::string& path) {
     }
 }
 
-size_t Resume_Watching::get_approx_duration(size_t total_bytes, size_t bitrate_kbps) {
-    size_t total_kbits = (total_bytes * 8) / 1024;  // 1 KB = 1024 bytes
-    return total_kbits / bitrate_kbps;
+VideoInfo Resume_Watching::get_video_info(const std::string& video_path) {
+    std::cout << "Getting video info for: " << video_path << std::endl;
+
+    std::string command = "bin\\ffprobe.exe -v quiet -print_format json -show_format \"" + video_path + "\"";
+
+    std::array<char, 256> buffer;
+    std::string result;
+    FILE* pipe = _popen(command.c_str(), "r");
+    if (!pipe) {
+        std::cerr << "Failed to run ffprobe\n";
+        return {};
+    }
+    while (fgets(buffer.data(), buffer.size(), pipe) != nullptr) {
+        result += buffer.data();
+    }
+    _pclose(pipe);
+
+    return parse_ffprobe_output(result);
+}
+
+size_t Resume_Watching::get_video_duration(const std::string& video_path) {
+    VideoInfo info = get_video_info(video_path);
+    return static_cast<size_t>(info.duration);
 }

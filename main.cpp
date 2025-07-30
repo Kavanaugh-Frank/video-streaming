@@ -75,6 +75,10 @@ void handle_client(SOCKET client_socket, const std::vector<std::string>& video_f
     else {
         std::string error_response = Http_Response_Generator::build_error_400();
 		send(client_socket, error_response.c_str(), static_cast<int>(error_response.size()), 0);
+
+        HTML_Request_Handler html_request_handler(client_socket, "error.html");
+        html_request_handler.serve_HTML();
+
         closesocket(client_socket);
     }
 }
@@ -103,7 +107,7 @@ int main() {
     while (true) {
         SOCKET client_socket = accept(server_socket, nullptr, nullptr);
 
-        if(client_socket == SOCKET_ERROR) {
+        if(client_socket == INVALID_SOCKET) {
             std::cerr << "Error accepting client connection: " << WSAGetLastError() << std::endl;
             continue;
 		}

@@ -15,12 +15,12 @@ TARGET := main
 all: $(TARGET)
 
 $(TARGET): $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^ -lws2_32
+	$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
 
 # Pattern rule for compiling .cpp to .o
 %.o: %.cpp
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	$(CXX) $(CXXFLAGS) -c $< -o $@ $(LDFLAGS)
 
 clean:
-	rm -f $(OBJS) $(TARGET)
+	rm -f $(OBJS) $(TARGET) 
 

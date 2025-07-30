@@ -1,0 +1,5 @@
+if(EXISTS "C:/Users/kavan/OneDrive/Desktop/http_test/out/build/x64-Debug/MyTests_tests-b12d07c.cmake")
+  include("C:/Users/kavan/OneDrive/Desktop/http_test/out/build/x64-Debug/MyTests_tests-b12d07c.cmake")
+else()
+  add_test(MyTests_NOT_BUILT-b12d07c MyTests_NOT_BUILT-b12d07c)
+endif()
